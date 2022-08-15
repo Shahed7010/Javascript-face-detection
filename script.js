@@ -1,5 +1,10 @@
 const imageUpload = document.getElementById('imageUpload');
 
+const loading = document.createElement('div');
+loading.textContent = 'Loading...';
+document.body.append(loading);
+
+
 Promise.all([
     faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
     faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
@@ -15,7 +20,8 @@ async function start() {
     const labeledFaceDescriptors = await loadLabeledImages();
     const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
 
-    document.body.append('select image now.');
+    loading.textContent = 'Select image now.';
+
 
     let image;
     let canvas;
@@ -43,8 +49,8 @@ async function start() {
             drawBox.draw(canvas);
         });
 
-        document.body.append(detections.length + 'recognized.');
-
+        document.body.append(detections.length + ' recognized.');
+        loading.remove();
     });
 }
 
