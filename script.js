@@ -6,16 +6,27 @@ Promise.all([
     faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
 ]).then(start);
 
-function start() {
+async function start() {
     const container = document.createElement('div');
     container.style.position = 'relative';
+    container.style.width = '100%';
     document.body.append(container);
 
+    const labeledFaceDescriptors = await loadLabeledImages();
+    const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
+
+    document.body.append('select image now.');
+
+    let image;
+    let canvas;
     imageUpload.addEventListener('change', async () => {
-        const image = await faceapi.bufferToImage(imageUpload.files[0]);
+        if (image) image.remove();
+        if (canvas) canvas.remove();
+        image = await faceapi.bufferToImage(imageUpload.files[0]);
+        image.style.height = '500px';
         container.append(image);
 
-        const canvas = faceapi.createCanvasFromMedia(image);
+        canvas = faceapi.createCanvasFromMedia(image);
         container.append(canvas);
 
         const displaySize = { width: image.width, height: image.height };
@@ -24,38 +35,31 @@ function start() {
         const detections = await faceapi.detectAllFaces(image).withFaceLandmarks().withFaceDescriptors();
 
         const resizeDetections = faceapi.resizeResults(detections, displaySize);
-        console.log(resizeDetections);
-        resizeDetections.forEach(detection => {
-            const box = detection.detection.box;
-            const drawBox = new faceapi.draw.DrawBox(box, { label: 'Face' });
-            console.log(drawBox);
+        const results = resizeDetections.map(d => faceMatcher.findBestMatch(d.descriptor));
+
+        results.forEach((detection, index) => {
+            const box = resizeDetections[index].detection.box;
+            const drawBox = new faceapi.draw.DrawBox(box, { label: detection.toString() });
             drawBox.draw(canvas);
         });
 
-        document.body.append(detections.length);
-
+        document.body.append(detections.length + 'recognized.');
 
     });
 }
 
-// video.addEventListener('play', () => {
-//     const canvas = faceapi.createCanvasFromMedia(video);
-//     document.body.append(canvas);
-//     const displaySize = { width: video.width, height: video.height };
-//     faceapi.matchDimensions(canvas, displaySize);
+function loadLabeledImages() {
+    const labels = ['Shahed', 'Shahin', 'Rakib', 'Shakil', 'Miraj', 'Sani', 'Mahfuz'];
 
-
-//     setInterval(async () => {
-//         const detection = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-//             .withFaceLandmarks()
-//             .withFaceExpressions();
-//         const resizeDetections = faceapi.resizeResults(detection, displaySize);
-
-//         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-
-//         faceapi.draw.drawDetections(canvas, resizeDetections);
-//         faceapi.draw.drawFaceLandmarks(canvas, resizeDetections);
-//         faceapi.draw.drawFaceExpressions(canvas, resizeDetections);
-
-//     }, 100)
-// })
+    return Promise.all(
+        labels.map(async (label) => {
+            const descriptions = [];
+            for (let index = 1; index <= 1; index++) {
+                const image = await faceapi.fetchImage(`http://127.0.0.1:5500/labeled-images/${label}/${index}.jpg`);
+                const detections = await faceapi.detectSingleFace(image).withFaceLandmarks().withFaceDescriptor();
+                descriptions.push(detections.descriptor);
+            }
+            return new faceapi.LabeledFaceDescriptors(label, descriptions);
+        })
+    );
+}
